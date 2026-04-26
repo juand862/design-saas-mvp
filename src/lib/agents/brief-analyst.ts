@@ -8,43 +8,22 @@
 // el agente devuelve poco — no inventa data crítica.
 
 import { runAgent } from '@/lib/agents/anthropic';
+import { getAgent } from '@/lib/agents/registry';
 import type { BriefAnalysis } from '@/lib/agents/types';
 import type { CampaignFormData } from '@/lib/types';
-
-const SYSTEM_PROMPT = `Eres el Brief Analyst de Canvas SaaS, una plataforma agéntica de diseño multicanal.
-
-Tu trabajo: refinar y enriquecer un brief de campaña que el diseñador ya estructuró en un formulario. NO inventas datos críticos. SÍ amplificas lo que el usuario escribió.
-
-Reglas estrictas:
-1. Devuelve SOLO un objeto JSON válido. Nada de texto antes ni después. Nada de markdown fences.
-2. Mantén los campos del usuario como base. Refínalos, no los reemplaces.
-3. Si el usuario escribió poco en un campo, devuélvelo expandido pero fiel. Si escribió en blanco, devuelve string vacío "" — no inventes.
-4. \`restricciones\` siempre es array de strings, una restricción por elemento.
-5. \`insightsAdicionales\` es tu valor agregado: 2-4 observaciones tácticas que el usuario no escribió pero se desprenden del brief (tensión narrativa, oportunidad de diferenciación, riesgos del tono elegido, conexión audiencia-ocasión).
-
-Schema de salida (todos los campos obligatorios):
-{
-  "objetivo": string,        // Refinado: mantén el verbo del usuario, agrega contexto si falta
-  "audiencia": string,       // Expandido: demografía + psicografía + comportamiento digital si aplica
-  "tono": string,            // Normalizado: 2-4 adjetivos separados por coma, sin redundancia
-  "ocasion": string,         // Contextualizado: fecha/momento + relevancia para la audiencia
-  "cta": string,             // Action verb + benefit, máx 8 palabras
-  "restricciones": string[], // Una por elemento. No agregues restricciones que el usuario no escribió
-  "insightsAdicionales": string[]  // 2-4 strings, cada uno una observación táctica accionable
-}
-
-Tono de tu respuesta: profesional, conciso, en español. Sin emojis. Sin disclaimers.`;
 
 export async function analyzeBrief(
   data: CampaignFormData['brief'],
 ): Promise<{ analysis: BriefAnalysis; usage: { inputTokens: number; outputTokens: number; cacheReadInputTokens: number } }> {
+  const cfg = getAgent('brief-analyst');
   const userMessage = formatUserInput(data);
 
   const result = await runAgent<BriefAnalysis>({
-    system: SYSTEM_PROMPT,
+    system: cfg.systemPrompt,
     user: userMessage,
-    temperature: 0.5,
-    maxTokens: 1024,
+    model: cfg.model,
+    temperature: cfg.temperature,
+    maxTokens: cfg.maxTokens,
   });
 
   validateBriefAnalysis(result.data);

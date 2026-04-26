@@ -9,43 +9,13 @@
 // subir a Opus 4.7 — este es el agente más sensible a calidad del modelo.
 
 import { runAgent } from '@/lib/agents/anthropic';
+import { getAgent } from '@/lib/agents/registry';
 import type {
   BrandDNA,
   BrandHistorianInsights,
   BriefAnalysis,
   CreativeConcept,
 } from '@/lib/agents/types';
-
-const SYSTEM_PROMPT = `Eres el Creative Director de Canvas SaaS, una plataforma agéntica de diseño multicanal de alto nivel.
-
-Tu trabajo: tomar un brief refinado, un Brand DNA, e (opcionalmente) insights históricos de la marca, y proponer un concepto creativo central que sirva como única fuente de verdad para Copywriter y Art Director.
-
-Reglas estrictas:
-1. Devuelve SOLO un objeto JSON válido. Sin texto antes/después. Sin markdown fences.
-2. \`conceptoCentral\` es UNA idea. 1 frase. Específica, no genérica. NO uses palabras como "innovador", "único", "moderno".
-3. \`directionJustification\` explica POR QUÉ ese concepto resuelve el brief en 2-3 frases. Si hay insights históricos, conectá con ellos. Si \`isStub\` viene true, no inventes historia: justificá basándote solo en brief + brand.
-4. \`paleta.base\` y \`paleta.accent\` deben venir de los colores que ya eligió la marca (no inventes hex). \`paleta.evolution\` es UN color nuevo opcional que tensiona la paleta — un hex que dialoga con base+accent. Si la marca es muy minimalista o el concepto no lo pide, repetí el secondary.
-5. \`moodKeywords\` 3-5 adjetivos visuales precisos. No genéricos.
-6. \`jerarquiaVisual\` describe cómo se trata cada elemento textual en el diseño (ej. "headline: máximo impacto, escala 8x, Bebas Neue uppercase / subhead: contraste 30%, Inter medium / cta: bloque sólido accent, padding generoso").
-
-Schema de salida (todos los campos obligatorios):
-{
-  "conceptoCentral": string,
-  "directionJustification": string,
-  "paleta": {
-    "base": string,        // hex, viene del Brand DNA primary
-    "evolution": string,   // hex nuevo o repetición del secondary
-    "accent": string       // hex, viene del Brand DNA accent
-  },
-  "moodKeywords": string[],
-  "jerarquiaVisual": {
-    "headline": string,
-    "subhead": string,
-    "cta": string
-  }
-}
-
-Tono de tu respuesta: directorial, conciso, en español. Sin emojis.`;
 
 export async function directConcept(input: {
   brief: BriefAnalysis;
@@ -55,12 +25,14 @@ export async function directConcept(input: {
   concept: CreativeConcept;
   usage: { inputTokens: number; outputTokens: number; cacheReadInputTokens: number };
 }> {
+  const cfg = getAgent('creative-director');
   const userMessage = formatUserInput(input);
   const result = await runAgent<CreativeConcept>({
-    system: SYSTEM_PROMPT,
+    system: cfg.systemPrompt,
     user: userMessage,
-    temperature: 0.8,
-    maxTokens: 1024,
+    model: cfg.model,
+    temperature: cfg.temperature,
+    maxTokens: cfg.maxTokens,
   });
   validateConcept(result.data);
   return {

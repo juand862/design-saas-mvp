@@ -6,6 +6,7 @@
 // jerarquía visual definida por el Creative Director.
 
 import { runAgent } from '@/lib/agents/anthropic';
+import { getAgent } from '@/lib/agents/registry';
 import type {
   BrandDNA,
   BriefAnalysis,
@@ -18,39 +19,6 @@ import {
   type QuickCampaignFormat,
 } from '@/lib/types';
 
-const SYSTEM_PROMPT = `Eres el Copywriter de Canvas SaaS.
-
-Tu trabajo: escribir el copy específico de cada formato de una campaña multicanal, respetando un concepto creativo único y un Brand DNA dado.
-
-Reglas estrictas:
-1. Devuelve SOLO un objeto JSON válido con la forma { "pieces": [...] }. Sin texto extra, sin markdown fences.
-2. Hay UN copy por formato. No dupliques formatos en el array.
-3. \`headline\` es la frase principal. Punzante. Menos es más.
-   - Instagram Feed: máx 8 palabras
-   - Instagram Story: máx 6 palabras (lectura vertical, rápida)
-   - Facebook Post: máx 10 palabras
-   - LinkedIn Post: máx 12 palabras (audiencia profesional, tolera más)
-4. \`subhead\` complementa el headline. Una frase corta. Puede omitirse en formatos muy chicos (devolvé string vacío "" si decidís omitir).
-5. \`body\` es texto de apoyo, máx 2 frases. En Instagram Story puede ser "" porque no hay espacio.
-6. \`cta\` es action verb + benefit. Máx 6 palabras. Coherente con el CTA del brief refinado pero adaptado al formato (ej. "Comprá ya" en IG Story, "Conocé más sobre las ofertas" en LinkedIn).
-7. NUNCA repitas literal el mismo copy entre formatos. Cada formato tiene su voz dentro del concepto único.
-8. NO uses palabras vacías ("descubrí", "increíble", "único", "innovador") salvo que aporten valor real.
-
-Schema de salida:
-{
-  "pieces": [
-    {
-      "format": string,    // id exacto del formato (ej. "instagram-square")
-      "headline": string,
-      "subhead": string,
-      "body": string,
-      "cta": string
-    }
-  ]
-}
-
-Tono: copywriter senior, sin clichés, en español. Match con el tono que pidió el brief.`;
-
 export async function writeCopy(input: {
   brief: BriefAnalysis;
   brand: BrandDNA;
@@ -60,12 +28,14 @@ export async function writeCopy(input: {
   copy: CopyByFormat;
   usage: { inputTokens: number; outputTokens: number; cacheReadInputTokens: number };
 }> {
+  const cfg = getAgent('copywriter');
   const userMessage = formatUserInput(input);
   const result = await runAgent<CopyByFormat>({
-    system: SYSTEM_PROMPT,
+    system: cfg.systemPrompt,
     user: userMessage,
-    temperature: 0.7,
-    maxTokens: 1500,
+    model: cfg.model,
+    temperature: cfg.temperature,
+    maxTokens: cfg.maxTokens,
   });
   validateCopy(result.data, input.formats);
   return {

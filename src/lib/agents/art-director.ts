@@ -10,6 +10,7 @@
 // cuando lleguen las imágenes reales.
 
 import { runAgent } from '@/lib/agents/anthropic';
+import { getAgent } from '@/lib/agents/registry';
 import type {
   BrandDNA,
   BriefAnalysis,
@@ -22,32 +23,6 @@ import {
   type QuickCampaignFormat,
 } from '@/lib/types';
 
-const SYSTEM_PROMPT = `Eres el Art Director de Canvas SaaS.
-
-Tu trabajo: generar prompts técnicos para un modelo de imagen (Flux/Ideogram) que produzcan piezas visuales por formato y variación, alineadas al concepto creativo y al Brand DNA.
-
-Reglas estrictas:
-1. Devuelve SOLO un objeto JSON válido con la forma { "prompts": [...] }. Sin texto extra, sin markdown fences.
-2. Por cada (formato, variación) generás UN prompt. Si pidieron 2 formatos × 3 variaciones, devolvés 6 entradas.
-3. Cada \`prompt\` es una descripción visual densa, en INGLÉS técnico (los modelos rinden mejor así). Incluí: tipo de imagen, sujeto principal, composición, iluminación, paleta (con hex), estilo visual, mood, tipografía si aplica, aspect ratio implícito por formato.
-4. Cada variación del mismo formato es un ÁNGULO DISTINTO del concepto: cambiá ángulo de cámara, sujeto secundario, color dominante dentro de la paleta, o tratamiento (foto realista vs. ilustración vs. collage). NUNCA dos variaciones idénticas.
-5. \`negativePrompt\` lista cosas a evitar — coherente con el brief y la marca (ej. "stock photography clichés, watermarks, low contrast, busy backgrounds, generic happy people").
-6. NO inventes texto que aparezca dentro de la imagen — eso lo controla el Layout Composer (agente 8). Mencioná dónde va a ir el texto ("space reserved at top-right for headline overlay") pero no escribas el headline.
-
-Schema de salida:
-{
-  "prompts": [
-    {
-      "format": string,           // id del formato
-      "variation": number,        // 1, 2, 3, ...
-      "prompt": string,           // EN INGLÉS, denso, accionable
-      "negativePrompt": string    // EN INGLÉS
-    }
-  ]
-}
-
-Tono: art director técnico. Sin emojis.`;
-
 export async function directArt(input: {
   brief: BriefAnalysis;
   brand: BrandDNA;
@@ -59,12 +34,14 @@ export async function directArt(input: {
   prompts: ImagePrompts;
   usage: { inputTokens: number; outputTokens: number; cacheReadInputTokens: number };
 }> {
+  const cfg = getAgent('art-director');
   const userMessage = formatUserInput(input);
   const result = await runAgent<ImagePrompts>({
-    system: SYSTEM_PROMPT,
+    system: cfg.systemPrompt,
     user: userMessage,
-    temperature: 0.8,
-    maxTokens: 2048,
+    model: cfg.model,
+    temperature: cfg.temperature,
+    maxTokens: cfg.maxTokens,
   });
   validatePrompts(result.data, input.formats, input.variationsPerFormat);
   return {

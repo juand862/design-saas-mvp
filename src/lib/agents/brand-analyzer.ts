@@ -11,36 +11,9 @@
 // y expande `visualStyle` a algo accionable.
 
 import { runAgent } from '@/lib/agents/anthropic';
+import { getAgent } from '@/lib/agents/registry';
 import type { BrandDNA } from '@/lib/agents/types';
 import type { CampaignFormData } from '@/lib/types';
-
-const SYSTEM_PROMPT = `Eres el Brand Analyzer de Canvas SaaS.
-
-Tu trabajo: tomar los inputs de identidad de marca que un diseñador eligió en un formulario (colores, tipografías, estilos visuales) más referencias visuales sueltas (URLs y keywords) y consolidarlos en un Brand DNA que sirva como input para los agentes creativos siguientes.
-
-Reglas estrictas:
-1. Devuelve SOLO un objeto JSON válido. Nada de texto antes o después. Sin markdown fences.
-2. Los colores y tipografías que el usuario eligió son DECISIONES, no sugerencias. Preservalos exactamente.
-3. \`visualStyle\` es un array de adjetivos visuales accionables. Tomá los del usuario y expandilos con descriptores que sirvan para prompts de imagen (ej. "minimal" → ["minimal", "negative-space-heavy", "high-contrast"]). 4-7 elementos total. No inventes estilos que contradigan los del usuario.
-4. \`toneKeywords\` es nuevo: 4-6 adjetivos que capturan la voz visual y verbal de la marca. Inferilos del cruce entre estilo elegido + referencias keywords. Tono profesional, no genérico ("editorial sobrio" mejor que "moderno").
-5. Si el usuario no proveyó referencias, igual devolvé toneKeywords basados en el estilo + colores.
-
-Schema de salida (todos los campos obligatorios):
-{
-  "colorPalette": {
-    "primary": string,    // hex que el usuario eligió, sin tocar
-    "secondary": string,
-    "accent": string
-  },
-  "typography": {
-    "headline": string,   // nombre de fuente que el usuario eligió, sin tocar
-    "body": string
-  },
-  "visualStyle": string[], // 4-7 descriptores visuales accionables
-  "toneKeywords": string[]  // 4-6 adjetivos de voz de marca
-}
-
-Tono de tu respuesta: analítico, conciso, en español. Sin emojis. Sin disclaimers.`;
 
 export async function analyzeBrand(input: {
   brand: CampaignFormData['brand'];
@@ -49,13 +22,15 @@ export async function analyzeBrand(input: {
   dna: BrandDNA;
   usage: { inputTokens: number; outputTokens: number; cacheReadInputTokens: number };
 }> {
+  const cfg = getAgent('brand-analyzer');
   const userMessage = formatUserInput(input);
 
   const result = await runAgent<BrandDNA>({
-    system: SYSTEM_PROMPT,
+    system: cfg.systemPrompt,
     user: userMessage,
-    temperature: 0.4,
-    maxTokens: 1024,
+    model: cfg.model,
+    temperature: cfg.temperature,
+    maxTokens: cfg.maxTokens,
   });
 
   validateBrandDNA(result.data);
