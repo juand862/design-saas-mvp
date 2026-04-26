@@ -161,3 +161,4 @@ export const INITIAL_FORM_DATA: CampaignFormData = {
 };
 
 export const QUICK_CAMPAIGN_STORAGE_KEY = 'canvas:quick-campaign';
+export const QUICK_CAMPAIGN_RESULT_KEY = 'canvas:quick-campaign:result';
