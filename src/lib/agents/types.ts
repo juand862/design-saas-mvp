@@ -77,19 +77,52 @@ export interface ImagePrompts {
   prompts: FormatImagePrompt[];
 }
 
+// 3. Brand Historian (stub hasta Fase 3 — Supabase con historial) ----------
+
+export interface BrandHistorianInsights {
+  brandEvolution: {
+    consistentElements: string[];
+    evolvingElements: string[];
+    seasonalPatterns: string[];
+  };
+  successfulConcepts: string[];
+  avoidPatterns: string[];
+  /** Marcador interno: true cuando el output viene del stub vacío. */
+  isStub: boolean;
+}
+
+// 7. Image Generation (stub hasta Fase 2B — Replicate) ---------------------
+
+export interface GeneratedImage {
+  format: QuickCampaignFormat;
+  variation: number;
+  url: string;
+  width: number;
+  height: number;
+  /** Marcador: true si la imagen es placeholder. false cuando llegue Replicate. */
+  isPlaceholder: boolean;
+}
+
+export interface GeneratedImages {
+  images: GeneratedImage[];
+}
+
 // Composite ------------------------------------------------------------------
 
 export interface CampaignGeneration {
   input: CampaignFormData;
   brief: BriefAnalysis;
   brand: BrandDNA;
+  history: BrandHistorianInsights;
   concept: CreativeConcept;
   copy: CopyByFormat;
   imagePrompts: ImagePrompts;
+  images: GeneratedImages;
   meta: {
     durationMs: number;
     model: string;
     generatedAt: string;
+    stubsUsed: string[];
   };
 }
 
