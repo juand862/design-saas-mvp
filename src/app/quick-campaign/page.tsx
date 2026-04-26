@@ -2,7 +2,16 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Instrument_Serif, Geist } from 'next/font/google';
+import {
+  CampaignFormData,
+  INITIAL_FORM_DATA,
+  QUICK_CAMPAIGN_STORAGE_KEY,
+} from '@/lib/types';
+import { useSessionValue, writeSessionValue } from '@/lib/session-storage';
+import { CampaignForm } from './_components/CampaignForm';
+import { validateCampaign } from './_components/validation';
 
 const display = Instrument_Serif({
   weight: '400',
@@ -16,24 +25,36 @@ const sans = Geist({
   variable: '--font-sans',
 });
 
-// Pasos según el spec (Step 0 de marca se omite en modo rápido)
 const STEPS = [
   { id: 1, label: 'Brief de Campaña', hint: 'Objetivo, audiencia, tono' },
-  { id: 2, label: 'Brand Guidelines', hint: 'Colores, tipografías, logos' },
+  { id: 2, label: 'Brand Guidelines', hint: 'Colores, tipografías, estilo' },
   { id: 3, label: 'Referencias Visuales', hint: 'Inspiración y mood' },
   { id: 4, label: 'Output Specs', hint: 'Canales y formatos' },
   { id: 5, label: 'Preview & Generate', hint: 'Revisar y producir' },
 ];
 
 export default function QuickCampaignPage() {
+  const router = useRouter();
   const [activeStep, setActiveStep] = useState(1);
+  const stored = useSessionValue<CampaignFormData>(QUICK_CAMPAIGN_STORAGE_KEY);
+  const data = stored ?? INITIAL_FORM_DATA;
+  const setData = (next: CampaignFormData) =>
+    writeSessionValue(QUICK_CAMPAIGN_STORAGE_KEY, next);
+
   const current = STEPS.find((s) => s.id === activeStep);
+  const issues = activeStep === 5 ? validateCampaign(data) : [];
+
+  const handleGenerate = () => {
+    const found = validateCampaign(data);
+    if (found.length > 0) return;
+    writeSessionValue(QUICK_CAMPAIGN_STORAGE_KEY, data);
+    router.push('/quick-campaign/generated');
+  };
 
   return (
     <main
       className={`${display.variable} ${sans.variable} min-h-screen bg-[#0A0A0A] text-[#F5F5F5] font-sans antialiased`}
     >
-      {/* Top Bar */}
       <header className="border-b border-white/[0.08]">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
           <Link
@@ -49,7 +70,6 @@ export default function QuickCampaignPage() {
       </header>
 
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-6 py-12 lg:grid-cols-[280px_1fr] lg:py-16">
-        {/* Sidebar - Step Indicator */}
         <aside className="lg:sticky lg:top-12 lg:self-start">
           <p className="mb-8 text-[10px] uppercase tracking-[0.3em] text-white/40">
             Progreso técnico
@@ -86,7 +106,6 @@ export default function QuickCampaignPage() {
           </ol>
         </aside>
 
-        {/* Main Content - Wizard */}
         <section>
           <div className="mb-12">
             <p className="text-xs uppercase tracking-[0.3em] text-white/40">
@@ -98,20 +117,14 @@ export default function QuickCampaignPage() {
             <p className="mt-3 text-sm text-white/50">{current?.hint}</p>
           </div>
 
-          {/* TODO: Mover aquí la UI del wizard que vivía en page.tsx (showProduct === true).
-              Sugerencia: extraer cada paso a su propio componente:
-              <BriefStep />, <BrandStep />, <ReferencesStep />, <OutputStep />, <PreviewStep />
-              y renderizar condicional sobre activeStep. */}
-          <div className="border border-dashed border-white/[0.12] bg-white/[0.01] p-12">
-            <p className="font-[family-name:var(--font-display)] text-2xl italic text-white/40">
-              Contenido del paso {activeStep}
-            </p>
-            <p className="mt-3 text-sm text-white/50">
-              Pegar aquí el componente del wizard correspondiente.
-            </p>
-          </div>
+          <CampaignForm
+            activeStep={activeStep}
+            data={data}
+            onChange={setData}
+            issues={issues}
+            onJumpTo={setActiveStep}
+          />
 
-          {/* Nav */}
           <div className="mt-12 flex items-center justify-between border-t border-white/[0.08] pt-8">
             <button
               onClick={() => setActiveStep((s) => Math.max(1, s - 1))}
@@ -128,7 +141,10 @@ export default function QuickCampaignPage() {
                 Continuar →
               </button>
             ) : (
-              <button className="bg-white px-6 py-3 text-sm text-black transition-colors hover:bg-white/90">
+              <button
+                onClick={handleGenerate}
+                className="bg-white px-6 py-3 text-sm text-black transition-colors hover:bg-white/90"
+              >
                 Generar campaña →
               </button>
             )}

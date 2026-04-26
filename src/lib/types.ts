@@ -62,3 +62,102 @@ export interface FormState {
   isValid: boolean;
   isGenerating: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Quick Campaign (flujo /quick-campaign — sin marca persistente, sin uploads).
+// Coexiste con DesignRequest hasta que el wizard de marca de /dashboard
+// consolide el modelo en una sola forma.
+// ---------------------------------------------------------------------------
+
+export type CampaignType = 'promotional' | 'branding' | 'launch' | 'seasonal';
+
+export type VisualStyle =
+  | 'minimal'
+  | 'bold'
+  | 'editorial'
+  | 'playful'
+  | 'vintage'
+  | 'futuristic';
+
+export const QUICK_CAMPAIGN_FORMATS = [
+  { id: 'instagram-square', label: 'Instagram Feed', width: 1080, height: 1080 },
+  { id: 'instagram-story', label: 'Instagram Story', width: 1080, height: 1920 },
+  { id: 'facebook-post', label: 'Facebook Post', width: 1200, height: 630 },
+  { id: 'linkedin-post', label: 'LinkedIn Post', width: 1200, height: 627 },
+] as const;
+
+export type QuickCampaignFormat = (typeof QUICK_CAMPAIGN_FORMATS)[number]['id'];
+
+export const TYPOGRAPHY_OPTIONS = [
+  'Inter',
+  'Bebas Neue',
+  'Playfair Display',
+  'Space Grotesk',
+  'Instrument Serif',
+  'Geist Mono',
+] as const;
+
+export const VISUAL_STYLE_OPTIONS: VisualStyle[] = [
+  'minimal',
+  'bold',
+  'editorial',
+  'playful',
+  'vintage',
+  'futuristic',
+];
+
+export const CAMPAIGN_TYPE_OPTIONS: { id: CampaignType; label: string }[] = [
+  { id: 'promotional', label: 'Promocional' },
+  { id: 'branding', label: 'Branding' },
+  { id: 'launch', label: 'Lanzamiento' },
+  { id: 'seasonal', label: 'Estacional' },
+];
+
+export interface CampaignFormData {
+  brief: {
+    objetivo: string;
+    audiencia: string;
+    tono: string;
+    ocasion: string;
+    cta: string;
+    restricciones: string[];
+    campaignType: CampaignType;
+  };
+  brand: {
+    colors: { primary: string; secondary: string; accent: string };
+    typography: { headline: string; body: string };
+    style: VisualStyle[];
+  };
+  references: {
+    urls: string[];
+    keywords: string[];
+  };
+  output: {
+    formats: QuickCampaignFormat[];
+    variationsPerFormat: number;
+  };
+}
+
+export const INITIAL_FORM_DATA: CampaignFormData = {
+  brief: {
+    objetivo: '',
+    audiencia: '',
+    tono: '',
+    ocasion: '',
+    cta: '',
+    restricciones: [],
+    campaignType: 'promotional',
+  },
+  brand: {
+    colors: { primary: '#0A0A0A', secondary: '#F5F5F5', accent: '#FF6B35' },
+    typography: { headline: 'Bebas Neue', body: 'Inter' },
+    style: [],
+  },
+  references: { urls: [], keywords: [] },
+  output: {
+    formats: ['instagram-square', 'instagram-story'],
+    variationsPerFormat: 2,
+  },
+};
+
+export const QUICK_CAMPAIGN_STORAGE_KEY = 'canvas:quick-campaign';
