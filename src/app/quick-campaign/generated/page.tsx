@@ -212,6 +212,13 @@ export default function GeneratedPage() {
     runStep(stepId, results);
   };
 
+  /** El admin editó el output de un step. Reemplazamos el resultado en estado
+   * para que cuando se haga "Continuar" el siguiente agente reciba el JSON
+   * editado. No re-corre el agente actual. */
+  const onSaveEdit = (stepId: StepId, newResult: unknown) => {
+    setResults((prev) => mergeStepResult(prev, stepId, newResult));
+  };
+
   const onRegenerar = () => {
     if (!data) return;
     clearSessionValue(QUICK_CAMPAIGN_RESULT_KEY);
@@ -281,6 +288,7 @@ export default function GeneratedPage() {
               result={pickResult(results, step.id)}
               onContinue={() => onContinue(step.id)}
               onRetry={() => onRetry(step.id)}
+              onSaveEdit={(newResult) => onSaveEdit(step.id, newResult)}
               isLast={idx === STEPS.length - 1}
             />
           ))}
@@ -366,6 +374,7 @@ function StepCard({
   result,
   onContinue,
   onRetry,
+  onSaveEdit,
   isLast,
 }: {
   step: StepDef;
@@ -375,9 +384,35 @@ function StepCard({
   result: unknown;
   onContinue: () => void;
   onRetry: () => void;
+  /** Reemplaza el resultado del step. Tira si el JSON es inválido. */
+  onSaveEdit: (newResult: unknown) => void;
   isLast: boolean;
 }) {
   const seconds = state.durationMs !== undefined ? (state.durationMs / 1000).toFixed(1) : null;
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState('');
+  const [editError, setEditError] = useState<string | undefined>(undefined);
+
+  const onStartEdit = () => {
+    setEditText(JSON.stringify(result, null, 2));
+    setEditError(undefined);
+    setEditing(true);
+  };
+  const onCancelEdit = () => {
+    setEditing(false);
+    setEditError(undefined);
+  };
+  const onCommitEdit = () => {
+    try {
+      const parsed: unknown = JSON.parse(editText);
+      onSaveEdit(parsed);
+      setEditing(false);
+      setEditError(undefined);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'JSON inválido.');
+    }
+  };
+
   return (
     <article
       className={`border p-6 transition-colors ${
@@ -417,16 +452,64 @@ function StepCard({
       ) : null}
 
       {(state.status === 'awaiting-ok' || state.status === 'done') && result !== undefined ? (
-        <div className="mt-6">
-          <ResultPreview stepId={step.id} result={result} />
-          {state.status === 'awaiting-ok' && !isLast ? (
-            <button
-              type="button"
-              onClick={onContinue}
-              className="mt-6 bg-white px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-black transition-colors hover:bg-white/90"
-            >
-              Continuar →
-            </button>
+        <div className="mt-6 space-y-4">
+          {editing ? (
+            <div className="space-y-3">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-white/50">
+                Editá el JSON. Lo que guardes acá se pasa como input al siguiente agente.
+              </p>
+              <textarea
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                rows={Math.min(28, Math.max(8, editText.split('\n').length + 1))}
+                spellCheck={false}
+                className="w-full resize-y border border-white/[0.12] bg-transparent px-3 py-2 font-mono text-[11px] leading-relaxed text-white focus:border-white/[0.30] focus:outline-none"
+              />
+              {editError ? (
+                <p className="border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-200/80">
+                  {editError}
+                </p>
+              ) : null}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onCommitEdit}
+                  className="bg-white px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-black transition-colors hover:bg-white/90"
+                >
+                  Guardar cambios
+                </button>
+                <button
+                  type="button"
+                  onClick={onCancelEdit}
+                  className="border border-white/[0.12] px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/70 transition-colors hover:border-white/[0.30] hover:text-white"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <ResultPreview stepId={step.id} result={result} />
+          )}
+
+          {!editing && state.status === 'awaiting-ok' ? (
+            <div className="flex flex-wrap gap-2 pt-2">
+              {!isLast ? (
+                <button
+                  type="button"
+                  onClick={onContinue}
+                  className="bg-white px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-black transition-colors hover:bg-white/90"
+                >
+                  Continuar →
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={onStartEdit}
+                className="border border-white/[0.12] px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-white transition-colors hover:border-white/[0.30]"
+              >
+                Editar
+              </button>
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -759,6 +842,7 @@ async function callStep(
         copy: results.copy,
         formats: data.output.formats,
         variationsPerFormat: data.output.variationsPerFormat,
+        referenceImages: data.references.images,
       });
     case 'image-generator':
       if (!results.brand || !results.copy || !results.imagePrompts) {
