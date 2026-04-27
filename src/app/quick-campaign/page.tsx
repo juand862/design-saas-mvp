@@ -214,7 +214,9 @@ function DemoBanner() {
       },
       references: { urls: [], keywords: ['femenino', 'familiar', 'celebración'], images: [] },
       output: {
-        formats: ['instagram-square', 'instagram-story'],
+        // Demo limitada a 1 formato × 2 variaciones (= 2 imágenes Replicate)
+        // para acotar tiempo y costo del test.
+        formats: ['instagram-square'],
         variationsPerFormat: 2,
       },
     };

@@ -61,13 +61,21 @@ export default function AdminDashboardPage() {
             <span className="tracking-[0.2em]">CANVAS</span>
           </Link>
           <p className="text-xs uppercase tracking-[0.25em] text-white/40">Admin · Agentes</p>
-          <button
-            type="button"
-            onClick={onLogout}
-            className="text-xs uppercase tracking-[0.25em] text-white/60 transition-colors hover:text-white"
-          >
-            Cerrar sesión
-          </button>
+          <div className="flex items-center gap-6">
+            <Link
+              href="/admin/tokens"
+              className="text-xs uppercase tracking-[0.25em] text-white/60 transition-colors hover:text-white"
+            >
+              Tokens →
+            </Link>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="text-xs uppercase tracking-[0.25em] text-white/60 transition-colors hover:text-white"
+            >
+              Cerrar sesión
+            </button>
+          </div>
         </div>
       </header>
 
@@ -79,6 +87,11 @@ export default function AdminDashboardPage() {
         <p className="mt-6 max-w-2xl text-sm text-white/50">
           Edita el system prompt y los parámetros de cada agente. Los cambios viven en memoria
           y se pierden al reiniciar el server. Persistencia real llega con Supabase en Fase 3.
+          Las API keys de Anthropic y Replicate se gestionan en{' '}
+          <Link href="/admin/tokens" className="text-white underline hover:text-white/80">
+            /admin/tokens
+          </Link>
+          .
         </p>
 
         {error ? (
@@ -104,7 +117,6 @@ export default function AdminDashboardPage() {
 }
 
 function AgentCard({ agent }: { agent: AgentConfig }) {
-  const isStub = agent.kind === 'stub';
   return (
     <Link
       href={`/admin/${agent.id}`}
@@ -114,15 +126,7 @@ function AgentCard({ agent }: { agent: AgentConfig }) {
         <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
           #{agent.order}
         </span>
-        <span
-          className={`border px-2 py-0.5 text-[9px] uppercase tracking-[0.2em] ${
-            isStub
-              ? 'border-amber-500/30 text-amber-200/70'
-              : 'border-emerald-500/30 text-emerald-200/70'
-          }`}
-        >
-          {isStub ? 'stub' : 'llm'}
-        </span>
+        <KindBadge kind={agent.kind} />
       </div>
 
       <h2 className="mt-4 font-[family-name:var(--font-display)] text-2xl text-white">
@@ -132,15 +136,41 @@ function AgentCard({ agent }: { agent: AgentConfig }) {
 
       <div className="mt-6 space-y-1 text-xs text-white/60">
         <Line label="ID" value={agent.id} mono />
-        <Line label="Modelo" value={isStub ? '—' : agent.model} mono />
-        <Line label="Temp." value={isStub ? '—' : agent.temperature.toFixed(2)} />
-        <Line label="Max tokens" value={isStub ? '—' : agent.maxTokens.toString()} />
+        {agent.kind === 'llm' ? (
+          <>
+            <Line label="Modelo" value={agent.model} mono />
+            <Line label="Temp." value={agent.temperature.toFixed(2)} />
+            <Line label="Max tokens" value={agent.maxTokens.toString()} />
+          </>
+        ) : agent.kind === 'image' ? (
+          <Line label="Modelo" value={agent.imageModel ?? '—'} mono />
+        ) : (
+          <Line label="Modelo" value="—" />
+        )}
       </div>
 
       <p className="mt-6 text-[10px] uppercase tracking-[0.25em] text-white/30 group-hover:text-white/60">
         Editar →
       </p>
     </Link>
+  );
+}
+
+function KindBadge({ kind }: { kind: AgentConfig['kind'] }) {
+  const meta = (() => {
+    switch (kind) {
+      case 'llm':
+        return { label: 'llm', cls: 'border-emerald-500/30 text-emerald-200/70' };
+      case 'image':
+        return { label: 'image', cls: 'border-sky-500/30 text-sky-200/70' };
+      case 'stub':
+        return { label: 'stub', cls: 'border-amber-500/30 text-amber-200/70' };
+    }
+  })();
+  return (
+    <span className={`border px-2 py-0.5 text-[9px] uppercase tracking-[0.2em] ${meta.cls}`}>
+      {meta.label}
+    </span>
   );
 }
 

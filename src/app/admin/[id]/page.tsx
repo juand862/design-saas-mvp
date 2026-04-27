@@ -6,6 +6,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Instrument_Serif, Geist } from 'next/font/google';
 import type { AgentConfig } from '@/lib/agents/registry';
 import { MODELS, type ModelId } from '@/lib/agents/anthropic';
+import { IMAGE_MODELS, type ImageModelId } from '@/lib/agents/replicate';
 
 const display = Instrument_Serif({
   weight: '400',
@@ -25,6 +26,10 @@ const MODEL_OPTIONS: { value: ModelId; label: string }[] = [
   { value: MODELS.haiku, label: 'Haiku 4.5' },
 ];
 
+const IMAGE_MODEL_OPTIONS: { value: ImageModelId; label: string }[] = Object.values(
+  IMAGE_MODELS,
+).map((m) => ({ value: m.id, label: m.label }));
+
 export default function AdminAgentEditPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -35,6 +40,7 @@ export default function AdminAgentEditPage() {
   const [model, setModel] = useState<ModelId>(MODELS.sonnet);
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(1024);
+  const [imageModel, setImageModel] = useState<ImageModelId>(IMAGE_MODELS['flux-dev'].id);
 
   const [loadError, setLoadError] = useState<string | undefined>(undefined);
   const [saveError, setSaveError] = useState<string | undefined>(undefined);
@@ -47,6 +53,7 @@ export default function AdminAgentEditPage() {
     setModel(next.model);
     setTemperature(next.temperature);
     setMaxTokens(next.maxTokens);
+    if (next.imageModel) setImageModel(next.imageModel);
   };
 
   useEffect(() => {
@@ -71,14 +78,18 @@ export default function AdminAgentEditPage() {
 
   const onSave = async (e: FormEvent) => {
     e.preventDefault();
-    if (!agent || agent.kind !== 'llm') return;
+    if (!agent || agent.kind === 'stub') return;
     setSaving(true);
     setSaveError(undefined);
     try {
+      const body =
+        agent.kind === 'image'
+          ? { imageModel }
+          : { systemPrompt, model, temperature, maxTokens };
       const res = await fetch(`/api/admin/agents/${agent.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ systemPrompt, model, temperature, maxTokens }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || 'Error al guardar.');
@@ -92,7 +103,7 @@ export default function AdminAgentEditPage() {
   };
 
   const onReset = async () => {
-    if (!agent || agent.kind !== 'llm') return;
+    if (!agent || agent.kind === 'stub') return;
     if (!window.confirm('¿Restaurar valores por defecto? Los cambios actuales se pierden.')) {
       return;
     }
@@ -151,8 +162,6 @@ export default function AdminAgentEditPage() {
     );
   }
 
-  const isStub = agent.kind === 'stub';
-
   return (
     <Shell>
       <Header>
@@ -174,15 +183,7 @@ export default function AdminAgentEditPage() {
               {agent.name}
             </h1>
           </div>
-          <span
-            className={`border px-2 py-0.5 text-[9px] uppercase tracking-[0.2em] ${
-              isStub
-                ? 'border-amber-500/30 text-amber-200/70'
-                : 'border-emerald-500/30 text-emerald-200/70'
-            }`}
-          >
-            {agent.kind}
-          </span>
+          <KindBadge kind={agent.kind} />
         </div>
 
         <p className="mt-4 max-w-2xl text-sm text-white/60">{agent.description}</p>
@@ -192,11 +193,46 @@ export default function AdminAgentEditPage() {
           <dd className="font-mono text-white/80">{agent.id}</dd>
         </dl>
 
-        {isStub ? (
+        {agent.kind === 'stub' ? (
           <div className="mt-12 border border-amber-500/20 bg-amber-500/5 p-6 text-sm text-amber-100/70">
             Este agente es un stub y no es editable hasta que se conecte la integración real
-            (Replicate para Image Generator, Supabase para Brand Historian).
+            (Supabase para Brand Historian).
           </div>
+        ) : agent.kind === 'image' ? (
+          <form onSubmit={onSave} className="mt-12 space-y-8">
+            <div className="border border-white/[0.08] p-6 text-xs text-white/60">
+              Este agente llama a Replicate para producir imágenes. Cambia el modelo según
+              calidad / costo / velocidad. Necesita{' '}
+              <Link href="/admin/tokens" className="text-white underline hover:text-white/80">
+                REPLICATE_API_TOKEN
+              </Link>{' '}
+              configurado.
+            </div>
+
+            <Field
+              label="Modelo Replicate"
+              hint="Flux Dev: balance default. Schnell: rápido y barato. Pro: premium. Ideogram: mejor para texto en imagen."
+            >
+              <select
+                value={imageModel}
+                onChange={(e) => setImageModel(e.target.value as ImageModelId)}
+                className="w-full appearance-none border border-white/[0.12] bg-[#0A0A0A] px-4 py-3 text-sm text-white focus:border-white/[0.30] focus:outline-none"
+              >
+                {IMAGE_MODEL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <SaveBar
+              saving={saving}
+              saveError={saveError}
+              savedAt={savedAt}
+              onReset={onReset}
+            />
+          </form>
         ) : (
           <form onSubmit={onSave} className="mt-12 space-y-8">
             <Field label="System prompt" hint="El cuerpo del prompt principal. JSON-only en la salida.">
@@ -249,45 +285,84 @@ export default function AdminAgentEditPage() {
               </Field>
             </div>
 
-            {saveError ? (
-              <p className="border border-red-500/20 bg-red-500/5 px-4 py-3 text-xs text-red-200/80">
-                {saveError}
-              </p>
-            ) : null}
-
-            {savedAt ? (
-              <p className="text-xs text-emerald-200/70">
-                Guardado · {new Date(savedAt).toLocaleTimeString()}
-              </p>
-            ) : null}
-
-            <div className="flex flex-wrap gap-3 border-t border-white/[0.08] pt-8">
-              <button
-                type="submit"
-                disabled={saving}
-                className="bg-white px-6 py-3 text-sm text-black transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {saving ? 'Guardando…' : 'Guardar cambios'}
-              </button>
-              <button
-                type="button"
-                onClick={onReset}
-                disabled={saving}
-                className="border border-white/[0.12] px-6 py-3 text-sm text-white transition-colors hover:border-white/[0.30] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Restaurar default
-              </button>
-              <Link
-                href="/admin"
-                className="border border-transparent px-6 py-3 text-sm text-white/60 transition-colors hover:text-white"
-              >
-                Cancelar
-              </Link>
-            </div>
+            <SaveBar
+              saving={saving}
+              saveError={saveError}
+              savedAt={savedAt}
+              onReset={onReset}
+            />
           </form>
         )}
       </section>
     </Shell>
+  );
+}
+
+function KindBadge({ kind }: { kind: AgentConfig['kind'] }) {
+  const meta = (() => {
+    switch (kind) {
+      case 'llm':
+        return { label: 'llm', cls: 'border-emerald-500/30 text-emerald-200/70' };
+      case 'image':
+        return { label: 'image', cls: 'border-sky-500/30 text-sky-200/70' };
+      case 'stub':
+        return { label: 'stub', cls: 'border-amber-500/30 text-amber-200/70' };
+    }
+  })();
+  return (
+    <span className={`border px-2 py-0.5 text-[9px] uppercase tracking-[0.2em] ${meta.cls}`}>
+      {meta.label}
+    </span>
+  );
+}
+
+function SaveBar({
+  saving,
+  saveError,
+  savedAt,
+  onReset,
+}: {
+  saving: boolean;
+  saveError: string | undefined;
+  savedAt: number | undefined;
+  onReset: () => void;
+}) {
+  return (
+    <>
+      {saveError ? (
+        <p className="border border-red-500/20 bg-red-500/5 px-4 py-3 text-xs text-red-200/80">
+          {saveError}
+        </p>
+      ) : null}
+      {savedAt ? (
+        <p className="text-xs text-emerald-200/70">
+          Guardado · {new Date(savedAt).toLocaleTimeString()}
+        </p>
+      ) : null}
+      <div className="flex flex-wrap gap-3 border-t border-white/[0.08] pt-8">
+        <button
+          type="submit"
+          disabled={saving}
+          className="bg-white px-6 py-3 text-sm text-black transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? 'Guardando…' : 'Guardar cambios'}
+        </button>
+        <button
+          type="button"
+          onClick={onReset}
+          disabled={saving}
+          className="border border-white/[0.12] px-6 py-3 text-sm text-white transition-colors hover:border-white/[0.30] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Restaurar default
+        </button>
+        <Link
+          href="/admin"
+          className="border border-transparent px-6 py-3 text-sm text-white/60 transition-colors hover:text-white"
+        >
+          Cancelar
+        </Link>
+      </div>
+    </>
   );
 }
 
