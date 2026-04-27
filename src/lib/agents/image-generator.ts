@@ -1,15 +1,13 @@
 // Image Generator — agente 7 del pipeline.
 //
-// STUB hasta Fase 2B (Replicate con Flux/Ideogram).
-// Hoy genera URLs de placeholder usando placehold.co + los colores del
-// Brand DNA + el headline del copy correspondiente. Esto deja la UI
-// renderizando piezas visuales coherentes con la marca aunque no haya
-// generación real.
+// Llama a Replicate (modelo configurable desde /admin/[image-generator])
+// con cada FormatImagePrompt en paralelo. Devuelve URLs públicas que
+// Replicate hostea (expiran a la hora — para MVP es suficiente; persistencia
+// en Supabase llega en Fase 3).
 //
-// Cuando llegue Replicate, esta función:
-//   1. Por cada FormatImagePrompt llama a Replicate con prompt + negativePrompt
-//   2. Sube las imágenes resultantes a Supabase Storage
-//   3. Devuelve URLs persistentes con isPlaceholder: false
+// Si Replicate falla para una imagen específica, el resto sigue. La imagen
+// fallida vuelve como placeholder con el error en el url (texto). El cliente
+// puede reintentar.
 
 import {
   QUICK_CAMPAIGN_FORMATS,
@@ -21,34 +19,81 @@ import type {
   GeneratedImages,
   ImagePrompts,
 } from '@/lib/agents/types';
+import { getAgent } from '@/lib/agents/registry';
+import { generateOne, type AspectRatio } from '@/lib/agents/replicate';
+
+const FORMAT_TO_ASPECT: Record<QuickCampaignFormat, AspectRatio> = {
+  'instagram-square': '1:1',
+  'instagram-story': '9:16',
+  'facebook-post': '16:9',
+  'linkedin-post': '16:9',
+};
 
 export async function generateImages(input: {
   prompts: ImagePrompts;
   brand: BrandDNA;
   copy: CopyByFormat;
 }): Promise<GeneratedImages> {
-  const images = input.prompts.prompts.map((p) => {
+  const cfg = getAgent('image-generator');
+  if (!cfg.imageModel) {
+    throw new Error('Image Generator: imageModel no configurado en el registry.');
+  }
+  const modelId = cfg.imageModel;
+
+  // En paralelo: cada prompt es independiente.
+  const settled = await Promise.allSettled(
+    input.prompts.prompts.map(async (p) => {
+      const meta = QUICK_CAMPAIGN_FORMATS.find((f) => f.id === p.format);
+      const width = meta?.width ?? 1080;
+      const height = meta?.height ?? 1080;
+      const aspectRatio = FORMAT_TO_ASPECT[p.format] ?? '1:1';
+
+      const url = await generateOne({
+        modelId,
+        prompt: p.prompt,
+        negativePrompt: p.negativePrompt || undefined,
+        aspectRatio,
+      });
+
+      return {
+        format: p.format,
+        variation: p.variation,
+        url,
+        width,
+        height,
+        isPlaceholder: false,
+      };
+    }),
+  );
+
+  const images = settled.map((r, idx) => {
+    const p = input.prompts.prompts[idx];
     const meta = QUICK_CAMPAIGN_FORMATS.find((f) => f.id === p.format);
     const width = meta?.width ?? 1080;
     const height = meta?.height ?? 1080;
+    if (r.status === 'fulfilled') return r.value;
+    // Fallback: placeholder con el error embebido en el texto.
     const piece = input.copy.pieces.find((c) => c.format === p.format);
-    const url = buildPlaceholderUrl({
+    const errorText = r.reason instanceof Error ? r.reason.message : 'Error desconocido';
+    const fallback = buildPlaceholderUrl({
       width,
       height,
       bg: input.brand.colorPalette.primary,
       fg: input.brand.colorPalette.accent,
-      text: piece?.headline ?? '',
+      text: `${piece?.headline ?? ''} (fallo: ${errorText.slice(0, 40)})`,
       variation: p.variation,
     });
+    console.error(`[image-generator] fallo en ${p.format} v${p.variation}:`, r.reason);
     return {
-      format: p.format as QuickCampaignFormat,
+      format: p.format,
       variation: p.variation,
-      url,
+      url: fallback,
       width,
       height,
       isPlaceholder: true,
     };
   });
+
   return { images };
 }
 

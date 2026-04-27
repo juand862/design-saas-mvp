@@ -11,6 +11,9 @@ import type {
 } from '@/lib/agents/types';
 
 export const runtime = 'nodejs';
+// Replicate puede tardar 10-30s por imagen; con N en paralelo el wall-time
+// es ~max(individual). Damos margen suficiente.
+export const maxDuration = 90;
 
 export async function POST(request: Request) {
   let payload: { prompts?: ImagePrompts; brand?: BrandDNA; copy?: CopyByFormat };

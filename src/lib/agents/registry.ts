@@ -11,6 +11,11 @@
 // irrelevante hasta que dejen de ser stubs.
 
 import { MODELS, type ModelId } from '@/lib/agents/anthropic';
+import {
+  IMAGE_MODELS,
+  isValidImageModel,
+  type ImageModelId,
+} from '@/lib/agents/replicate';
 
 export type AgentId =
   | 'brief-analyst'
@@ -21,7 +26,7 @@ export type AgentId =
   | 'art-director'
   | 'image-generator';
 
-export type AgentKind = 'llm' | 'stub';
+export type AgentKind = 'llm' | 'stub' | 'image';
 
 export interface AgentConfig {
   id: AgentId;
@@ -32,20 +37,21 @@ export interface AgentConfig {
   /** Una frase explicando qué hace el agente. */
   description: string;
   kind: AgentKind;
-  /** Prompt principal — vacío para stubs. */
+  /** Prompt principal — vacío para stubs e image. */
   systemPrompt: string;
-  /** Modelo Claude. Irrelevante para stubs. */
+  /** Modelo Claude. Solo aplica para kind === 'llm'. */
   model: ModelId;
-  /** Temperatura. Irrelevante para stubs. */
+  /** Temperatura. Solo aplica para kind === 'llm'. */
   temperature: number;
-  /** Tope de tokens de respuesta. Irrelevante para stubs. */
+  /** Tope de tokens de respuesta. Solo aplica para kind === 'llm'. */
   maxTokens: number;
+  /** Modelo Replicate. Solo definido para kind === 'image'. */
+  imageModel?: ImageModelId;
 }
 
-/** Campos que el admin puede modificar. id/name/kind/order/description son inmutables. */
-export type AgentEditableFields = Pick<
-  AgentConfig,
-  'systemPrompt' | 'model' | 'temperature' | 'maxTokens'
+/** Campos editables. La unión cubre LLM e image — el validator chequea por kind. */
+export type AgentEditableFields = Partial<
+  Pick<AgentConfig, 'systemPrompt' | 'model' | 'temperature' | 'maxTokens' | 'imageModel'>
 >;
 
 const BRIEF_ANALYST_PROMPT = `Eres el Brief Analyst de Canvas SaaS, una plataforma agéntica de diseño multicanal.
@@ -237,12 +243,13 @@ const DEFAULTS: Record<AgentId, AgentConfig> = {
     id: 'image-generator',
     name: 'Image Generator',
     order: 7,
-    description: 'Genera imágenes finales. Stub hasta Fase 2B (Replicate con Flux/Ideogram).',
-    kind: 'stub',
+    description: 'Genera imágenes finales con Replicate (Flux / Ideogram).',
+    kind: 'image',
     systemPrompt: '',
     model: MODELS.sonnet,
     temperature: 0,
     maxTokens: 0,
+    imageModel: IMAGE_MODELS['flux-dev'].id,
   },
 };
 
@@ -268,18 +275,30 @@ export function isValidAgentId(id: string): id is AgentId {
 }
 
 /**
- * Aplica un patch a la config de un agente. Solo agentes LLM. Devuelve la
- * config resultante. Tira si la id no existe, si el agente es stub, o si
- * algún valor del patch es inválido.
+ * Aplica un patch a la config de un agente. Por kind: agentes 'llm' aceptan
+ * systemPrompt/model/temperature/maxTokens; agentes 'image' aceptan imageModel.
+ * Stubs (kind: 'stub') rechazan cualquier patch.
  */
-export function updateAgent(id: AgentId, patch: Partial<AgentEditableFields>): AgentConfig {
+export function updateAgent(id: AgentId, patch: AgentEditableFields): AgentConfig {
   const current = getAgent(id);
-  if (current.kind !== 'llm') {
+  if (current.kind === 'stub') {
     throw new Error(`Agent "${id}" es un stub y no se puede editar.`);
   }
 
   const next: AgentConfig = { ...current };
 
+  if (current.kind === 'image') {
+    if (patch.imageModel !== undefined) {
+      if (typeof patch.imageModel !== 'string' || !isValidImageModel(patch.imageModel)) {
+        throw new Error(`imageModel "${patch.imageModel}" no es válido.`);
+      }
+      next.imageModel = patch.imageModel;
+    }
+    registry.set(id, next);
+    return next;
+  }
+
+  // current.kind === 'llm'
   if (patch.systemPrompt !== undefined) {
     if (typeof patch.systemPrompt !== 'string' || patch.systemPrompt.trim().length === 0) {
       throw new Error('systemPrompt debe ser string no vacío.');

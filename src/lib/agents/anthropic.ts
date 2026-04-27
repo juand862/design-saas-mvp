@@ -3,6 +3,7 @@
 // centralizado, prompt caching del system prompt, parseo robusto de JSON.
 
 import Anthropic from '@anthropic-ai/sdk';
+import { getAnthropicKey } from '@/lib/admin/tokens';
 
 // Modelos disponibles. Sonnet 4.6 como default — buen balance precio/calidad
 // para el MVP. Subir a Opus 4.7 puntualmente (ej. Creative Director) cuando
@@ -16,16 +17,20 @@ export const MODELS = {
 export type ModelId = (typeof MODELS)[keyof typeof MODELS];
 
 let cachedClient: Anthropic | null = null;
+let cachedKey: string | undefined;
 
 function getClient(): Anthropic {
-  if (cachedClient) return cachedClient;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = getAnthropicKey();
   if (!apiKey) {
     throw new Error(
-      'ANTHROPIC_API_KEY no está definida. Agrega la variable a .env.local.',
+      'ANTHROPIC_API_KEY no está definida. Configurala en .env.local o desde /admin/tokens.',
     );
   }
-  cachedClient = new Anthropic({ apiKey });
+  // Si la key cambió (vía /admin/tokens), recreamos el cliente.
+  if (!cachedClient || cachedKey !== apiKey) {
+    cachedClient = new Anthropic({ apiKey });
+    cachedKey = apiKey;
+  }
   return cachedClient;
 }
 

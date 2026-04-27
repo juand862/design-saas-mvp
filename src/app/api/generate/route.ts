@@ -28,8 +28,8 @@ import type { CampaignGeneration } from '@/lib/agents/types';
 import type { CampaignFormData } from '@/lib/types';
 
 export const runtime = 'nodejs';
-// Pipeline largo: damos margen para los 5 LLMs en serie.
-export const maxDuration = 120;
+// Pipeline largo: 5 LLMs en serie + generación de imágenes Replicate.
+export const maxDuration = 180;
 
 export async function POST(request: Request) {
   let payload: { campaign?: CampaignFormData };
@@ -85,7 +85,9 @@ export async function POST(request: Request) {
       brand: brandRes.dna,
       copy: copyRes.copy,
     });
-    stubsUsed.push('image-generation');
+    if (images.images.some((i) => i.isPlaceholder)) {
+      stubsUsed.push('image-generation (fallback)');
+    }
     stubsUsed.push('layout-composer');
 
     const result: CampaignGeneration = {
