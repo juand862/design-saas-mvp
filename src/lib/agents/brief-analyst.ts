@@ -39,16 +39,17 @@ export async function analyzeBrief(
 }
 
 function formatUserInput(brief: CampaignFormData['brief']): string {
+  const restricciones = brief.restricciones.map((r) => r.trim()).filter(Boolean);
   return `Brief estructurado del diseñador:
 
 Tipo de campaña: ${brief.campaignType}
-Objetivo: ${brief.objetivo || '(vacío)'}
-Audiencia: ${brief.audiencia || '(vacío)'}
-Tono buscado: ${brief.tono || '(vacío)'}
-Ocasión: ${brief.ocasion || '(vacío)'}
-Call to action: ${brief.cta || '(vacío)'}
+Objetivo: ${brief.objetivo.trim() || '(vacío)'}
+Audiencia: ${brief.audiencia.trim() || '(vacío)'}
+Tono buscado: ${brief.tono.trim() || '(vacío)'}
+Ocasión: ${brief.ocasion.trim() || '(vacío)'}
+Call to action: ${brief.cta.trim() || '(vacío)'}
 Restricciones explícitas:
-${brief.restricciones.length > 0 ? brief.restricciones.map((r) => `- ${r}`).join('\n') : '(ninguna)'}
+${restricciones.length > 0 ? restricciones.map((r) => `- ${r}`).join('\n') : '(ninguna)'}
 
 Refina y devuelve el JSON según el schema.`;
 }
