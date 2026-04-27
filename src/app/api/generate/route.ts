@@ -78,6 +78,7 @@ export async function POST(request: Request) {
       copy: copyRes.copy,
       formats: campaign.output.formats,
       variationsPerFormat: campaign.output.variationsPerFormat,
+      referenceImages: campaign.references.images,
     });
 
     const images = await generateImages({

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Instrument_Serif, Geist } from 'next/font/google';
 import {
   CampaignFormData,
+  ImageRef,
   INITIAL_FORM_DATA,
   QUICK_CAMPAIGN_RESULT_KEY,
   QUICK_CAMPAIGN_STORAGE_KEY,
@@ -170,26 +171,47 @@ export default function QuickCampaignPage() {
 /**
  * Banner temporal para guías de prueba: prefilea el wizard con datos de
  * "Mother's Day Leonisa USA" + permite adjuntar el .md de guidelines y
- * disparar el pipeline directo. Quitar cuando termine la fase de demo.
+ * fotos de referencia para que Brand Analyzer y Art Director las usen.
+ * Quitar cuando termine la fase de demo.
  */
 function DemoBanner() {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mdInputRef = useRef<HTMLInputElement>(null);
+  const imgInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | undefined>(undefined);
   const [markdown, setMarkdown] = useState<string | undefined>(undefined);
+  const [images, setImages] = useState<ImageRef[]>([]);
   const [busy, setBusy] = useState(false);
 
-  const onPick = async (file: File) => {
+  const onPickMd = async (file: File) => {
     const text = await file.text();
     setFileName(file.name);
     setMarkdown(text);
   };
 
-  const onClear = () => {
+  const onClearMd = () => {
     setFileName(undefined);
     setMarkdown(undefined);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (mdInputRef.current) mdInputRef.current.value = '';
   };
+
+  const onPickImages = async (files: FileList | null) => {
+    if (!files) return;
+    const accepted: ImageRef[] = [];
+    const slots = Math.max(0, 6 - images.length);
+    const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    const MAX_BYTES = 4 * 1024 * 1024;
+    for (const file of Array.from(files).slice(0, slots)) {
+      if (!ACCEPTED.includes(file.type)) continue;
+      if (file.size > MAX_BYTES) continue;
+      const base64 = await fileToBase64(file);
+      accepted.push({ name: file.name, mimeType: file.type, base64 });
+    }
+    if (accepted.length > 0) setImages([...images, ...accepted]);
+    if (imgInputRef.current) imgInputRef.current.value = '';
+  };
+
+  const onClearImages = () => setImages([]);
 
   const onRun = () => {
     if (!markdown) return;
@@ -212,7 +234,11 @@ function DemoBanner() {
         guidelinesMarkdown: markdown,
         guidelinesFileName: fileName,
       },
-      references: { urls: [], keywords: ['femenino', 'familiar', 'celebración'], images: [] },
+      references: {
+        urls: [],
+        keywords: ['femenino', 'familiar', 'celebración'],
+        images,
+      },
       output: {
         // Demo limitada a 1 formato × 2 variaciones (= 2 imágenes Replicate)
         // para acotar tiempo y costo del test.
@@ -227,38 +253,87 @@ function DemoBanner() {
 
   return (
     <section className="border-b border-white/[0.08] bg-amber-500/[0.04]">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-5 md:flex-row md:items-center md:justify-between">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-5">
         <div className="flex flex-col">
           <span className="text-[10px] uppercase tracking-[0.3em] text-amber-200/70">
             Demo · temporal
           </span>
           <span className="mt-1 text-sm text-white/80">
-            Mother&apos;s Day Leonisa USA — adjuntá el .md de guidelines y arrancamos el pipeline.
+            Mother&apos;s Day Leonisa USA — adjuntá el .md de guidelines y/o fotos de referencia.
+            Brand Analyzer y Art Director las usan para que el output visual matchee la marca.
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".md,text/markdown,text/plain"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onPick(file);
-            }}
-            className="block w-full max-w-xs cursor-pointer border border-white/[0.12] bg-transparent py-2 px-3 text-xs text-white/70 file:mr-3 file:cursor-pointer file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-[10px] file:uppercase file:tracking-[0.2em] file:text-white hover:border-white/30"
-          />
-          {fileName ? (
-            <span className="flex items-center gap-2 text-xs text-emerald-200/80">
-              {fileName}
-              <button
-                type="button"
-                onClick={onClear}
-                className="text-emerald-200/60 hover:text-emerald-200/90"
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="flex items-center gap-3">
+            <input
+              ref={mdInputRef}
+              type="file"
+              accept=".md,text/markdown,text/plain"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onPickMd(file);
+              }}
+              className="block w-full cursor-pointer border border-white/[0.12] bg-transparent py-2 px-3 text-xs text-white/70 file:mr-3 file:cursor-pointer file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-[10px] file:uppercase file:tracking-[0.2em] file:text-white hover:border-white/30"
+            />
+            {fileName ? (
+              <span className="flex shrink-0 items-center gap-2 text-xs text-emerald-200/80">
+                {fileName}
+                <button
+                  type="button"
+                  onClick={onClearMd}
+                  className="text-emerald-200/60 hover:text-emerald-200/90"
+                >
+                  ×
+                </button>
+              </span>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              ref={imgInputRef}
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              disabled={images.length >= 6}
+              onChange={(e) => onPickImages(e.target.files)}
+              className="block w-full cursor-pointer border border-white/[0.12] bg-transparent py-2 px-3 text-xs text-white/70 file:mr-3 file:cursor-pointer file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-[10px] file:uppercase file:tracking-[0.2em] file:text-white hover:border-white/30 disabled:cursor-not-allowed disabled:opacity-40"
+            />
+            {images.length > 0 ? (
+              <span className="flex shrink-0 items-center gap-2 text-xs text-emerald-200/80">
+                {images.length} foto{images.length === 1 ? '' : 's'}
+                <button
+                  type="button"
+                  onClick={onClearImages}
+                  className="text-emerald-200/60 hover:text-emerald-200/90"
+                >
+                  ×
+                </button>
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        {images.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {images.map((img, idx) => (
+              <div
+                key={`${img.name}-${idx}`}
+                className="h-12 w-12 overflow-hidden border border-white/[0.08]"
               >
-                ×
-              </button>
-            </span>
-          ) : null}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`data:${img.mimeType};base64,${img.base64}`}
+                  alt={img.name}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={onRun}
@@ -271,4 +346,21 @@ function DemoBanner() {
       </div>
     </section>
   );
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('FileReader devolvió un tipo inesperado.'));
+        return;
+      }
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }

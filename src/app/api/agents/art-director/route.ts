@@ -9,7 +9,7 @@ import type {
   CopyByFormat,
   CreativeConcept,
 } from '@/lib/agents/types';
-import type { QuickCampaignFormat } from '@/lib/types';
+import type { ImageRef, QuickCampaignFormat } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     copy?: CopyByFormat;
     formats?: QuickCampaignFormat[];
     variationsPerFormat?: number;
+    referenceImages?: ImageRef[];
   };
   try {
     payload = await request.json();
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
       copy: payload.copy,
       formats: payload.formats,
       variationsPerFormat: payload.variationsPerFormat,
+      referenceImages: payload.referenceImages,
     });
     return NextResponse.json({
       ok: true,
