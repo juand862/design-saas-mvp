@@ -20,6 +20,7 @@ import type {
 } from '@/lib/agents/types';
 import {
   QUICK_CAMPAIGN_FORMATS,
+  type ImageRef,
   type QuickCampaignFormat,
 } from '@/lib/types';
 
@@ -30,15 +31,24 @@ export async function directArt(input: {
   copy: CopyByFormat;
   formats: QuickCampaignFormat[];
   variationsPerFormat: number;
+  /** Imágenes de referencia subidas por el usuario, en multimodal. */
+  referenceImages?: ImageRef[];
 }): Promise<{
   prompts: ImagePrompts;
   usage: { inputTokens: number; outputTokens: number; cacheReadInputTokens: number };
 }> {
   const cfg = getAgent('art-director');
   const userMessage = formatUserInput(input);
+
+  const images = (input.referenceImages ?? []).map((img) => ({
+    mimeType: img.mimeType,
+    base64: img.base64,
+  }));
+
   const result = await runAgent<ImagePrompts>({
     system: cfg.systemPrompt,
     user: userMessage,
+    images: images.length > 0 ? images : undefined,
     model: cfg.model,
     temperature: cfg.temperature,
     maxTokens: cfg.maxTokens,
@@ -61,6 +71,7 @@ function formatUserInput(input: {
   copy: CopyByFormat;
   formats: QuickCampaignFormat[];
   variationsPerFormat: number;
+  referenceImages?: ImageRef[];
 }): string {
   const formatLines = input.formats
     .map((id) => {
@@ -69,6 +80,12 @@ function formatUserInput(input: {
       return `- ${id} (${meta?.label}, ${meta?.width}×${meta?.height}) — headline: "${piece?.headline ?? '(sin copy)'}"`;
     })
     .join('\n');
+
+  const refCount = input.referenceImages?.length ?? 0;
+  const refLine =
+    refCount > 0
+      ? `\nReferencias visuales adjuntas: ${refCount} imagen(es) (analizalas en los bloques anteriores — extraé tratamiento, mood, composición, tipo de fotografía, paleta efectiva, y reflejá ese lenguaje visual en cada prompt sin copiarlas literalmente).`
+      : '';
 
   return `Brief:
 - Audiencia: ${input.brief.audiencia}
@@ -83,6 +100,7 @@ Concepto creativo:
 - Central: ${input.concept.conceptoCentral}
 - Mood: ${input.concept.moodKeywords.join(', ')}
 - Paleta evolucionada: base ${input.concept.paleta.base}, evolution ${input.concept.paleta.evolution}, accent ${input.concept.paleta.accent}
+${refLine}
 
 Formatos y headlines:
 ${formatLines}
