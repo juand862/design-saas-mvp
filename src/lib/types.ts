@@ -113,6 +113,17 @@ export const CAMPAIGN_TYPE_OPTIONS: { id: CampaignType; label: string }[] = [
   { id: 'seasonal', label: 'Estacional' },
 ];
 
+/**
+ * Imagen subida por el usuario, codificada en base64 para guardarla en
+ * sessionStorage y mandarla a la API de Claude (multimodal). Para previsualizar
+ * en la UI: `data:${mimeType};base64,${base64}`.
+ */
+export interface ImageRef {
+  name: string;
+  mimeType: string;
+  base64: string;
+}
+
 export interface CampaignFormData {
   brief: {
     objetivo: string;
@@ -127,10 +138,16 @@ export interface CampaignFormData {
     colors: { primary: string; secondary: string; accent: string };
     typography: { headline: string; body: string };
     style: VisualStyle[];
+    /** Texto de un .md de brand guidelines, opcional. Se manda al Brand Analyzer. */
+    guidelinesMarkdown?: string;
+    /** Nombre del archivo .md (solo display). */
+    guidelinesFileName?: string;
   };
   references: {
     urls: string[];
     keywords: string[];
+    /** Imágenes de referencia. Se mandan multimodal al Brand Analyzer. */
+    images?: ImageRef[];
   };
   output: {
     formats: QuickCampaignFormat[];
@@ -153,7 +170,7 @@ export const INITIAL_FORM_DATA: CampaignFormData = {
     typography: { headline: 'Bebas Neue', body: 'Inter' },
     style: [],
   },
-  references: { urls: [], keywords: [] },
+  references: { urls: [], keywords: [], images: [] },
   output: {
     formats: ['instagram-square', 'instagram-story'],
     variationsPerFormat: 2,

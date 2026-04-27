@@ -25,9 +25,16 @@ export async function analyzeBrand(input: {
   const cfg = getAgent('brand-analyzer');
   const userMessage = formatUserInput(input);
 
+  // Si hay imágenes subidas, las pasamos como bloques multimodales al modelo.
+  const images = (input.references.images ?? []).map((img) => ({
+    mimeType: img.mimeType,
+    base64: img.base64,
+  }));
+
   const result = await runAgent<BrandDNA>({
     system: cfg.systemPrompt,
     user: userMessage,
+    images: images.length > 0 ? images : undefined,
     model: cfg.model,
     temperature: cfg.temperature,
     maxTokens: cfg.maxTokens,
@@ -52,6 +59,11 @@ function formatUserInput({
   brand: CampaignFormData['brand'];
   references: CampaignFormData['references'];
 }): string {
+  const urls = references.urls.map((u) => u.trim()).filter(Boolean);
+  const keywords = references.keywords.map((k) => k.trim()).filter(Boolean);
+  const imageCount = references.images?.length ?? 0;
+  const md = brand.guidelinesMarkdown?.trim();
+
   return `Inputs del wizard:
 
 Colores elegidos:
@@ -66,10 +78,13 @@ Tipografías elegidas:
 Estilos visuales elegidos: ${brand.style.length > 0 ? brand.style.join(', ') : '(ninguno seleccionado)'}
 
 Referencias visuales:
-- URLs: ${references.urls.length > 0 ? references.urls.join(', ') : '(ninguna)'}
-- Keywords: ${references.keywords.length > 0 ? references.keywords.join(', ') : '(ninguna)'}
+- URLs: ${urls.length > 0 ? urls.join(', ') : '(ninguna)'}
+- Keywords: ${keywords.length > 0 ? keywords.join(', ') : '(ninguna)'}
+- Imágenes adjuntas: ${imageCount > 0 ? `${imageCount} (analizalas visualmente — están en los bloques anteriores)` : '(ninguna)'}
 
-Consolidá esto en un Brand DNA según el schema.`;
+${md ? `Guidelines de marca (markdown adjunto del usuario — TIENE PRIORIDAD sobre los inputs sueltos cuando haya conflicto):\n---\n${md}\n---\n` : 'Sin guidelines en markdown adjuntos.'}
+
+Consolidá esto en un Brand DNA según el schema. Si las imágenes muestran logos o piezas de la marca, extraé colores y estilo de ahí (verificá los hex del usuario contra lo que ves; si difieren mucho, mantené los del usuario pero reflejá el patrón visual real en visualStyle).`;
 }
 
 function validateBrandDNA(data: unknown): asserts data is BrandDNA {

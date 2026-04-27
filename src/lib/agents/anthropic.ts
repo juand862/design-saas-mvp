@@ -29,6 +29,13 @@ function getClient(): Anthropic {
   return cachedClient;
 }
 
+/** Imagen para enviar al modelo en una llamada multimodal. */
+export interface AgentImage {
+  mimeType: string;
+  /** Base64 puro, sin el prefijo `data:...,`. */
+  base64: string;
+}
+
 interface RunAgentParams {
   /**
    * System prompt. Se envía con `cache_control: ephemeral` para reducir costo
@@ -37,6 +44,11 @@ interface RunAgentParams {
   system: string;
   /** User message (input concreto del agente, sin reglas/instrucciones). */
   user: string;
+  /**
+   * Imágenes opcionales para llamadas multimodales (Brand Analyzer recibe
+   * fotos del usuario, p. ej.). Se envían como bloques `image` antes del texto.
+   */
+  images?: AgentImage[];
   /** Override del modelo. Default: Sonnet 4.6. */
   model?: ModelId;
   /** Tope de tokens de respuesta. Default: 2048 (suficiente para JSONs medianos). */
@@ -67,10 +79,26 @@ export async function runAgent<T>(
   const {
     system,
     user,
+    images,
     model = MODELS.sonnet,
     maxTokens = 2048,
     temperature = 0.7,
   } = params;
+
+  const userContent: Anthropic.ContentBlockParam[] = [];
+  if (images && images.length > 0) {
+    for (const img of images) {
+      userContent.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: normalizeMime(img.mimeType),
+          data: img.base64,
+        },
+      });
+    }
+  }
+  userContent.push({ type: 'text', text: user });
 
   const client = getClient();
   const response = await client.messages.create({
@@ -84,7 +112,7 @@ export async function runAgent<T>(
         cache_control: { type: 'ephemeral' },
       },
     ],
-    messages: [{ role: 'user', content: user }],
+    messages: [{ role: 'user', content: userContent }],
   });
 
   const rawText = response.content
@@ -128,6 +156,17 @@ function parseJsonFromModelOutput<T>(text: string): T {
         `Candidato: ${candidate.slice(0, 200)}`,
     );
   }
+}
+
+/** Normaliza el mime type al subset que Anthropic acepta para imágenes. */
+function normalizeMime(mime: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' {
+  const lower = mime.toLowerCase();
+  if (lower === 'image/jpeg' || lower === 'image/jpg') return 'image/jpeg';
+  if (lower === 'image/png') return 'image/png';
+  if (lower === 'image/gif') return 'image/gif';
+  if (lower === 'image/webp') return 'image/webp';
+  // Fallback: assume jpeg. Anthropic rechaza si está mal.
+  return 'image/jpeg';
 }
 
 function extractFirstJsonObject(text: string): string | null {
