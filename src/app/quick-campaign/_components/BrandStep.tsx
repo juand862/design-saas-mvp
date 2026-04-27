@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import {
   CampaignFormData,
   TYPOGRAPHY_OPTIONS,
@@ -89,6 +90,75 @@ export function BrandStep({
           onChange={(v) => onChange({ ...value, style: v as VisualStyle[] })}
         />
       </Field>
+
+      <GuidelinesUpload
+        markdown={value.guidelinesMarkdown}
+        fileName={value.guidelinesFileName}
+        onChange={(text, name) =>
+          onChange({
+            ...value,
+            guidelinesMarkdown: text,
+            guidelinesFileName: name,
+          })
+        }
+      />
     </div>
+  );
+}
+
+function GuidelinesUpload({
+  markdown,
+  fileName,
+  onChange,
+}: {
+  markdown: string | undefined;
+  fileName: string | undefined;
+  onChange: (text: string | undefined, name: string | undefined) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const hasFile = Boolean(markdown && fileName);
+
+  const onFile = async (file: File) => {
+    const text = await file.text();
+    onChange(text, file.name);
+  };
+
+  const onClear = () => {
+    onChange(undefined, undefined);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  return (
+    <Field
+      label="Brand guidelines (.md)"
+      hint="Opcional. Adjuntá un markdown con guidelines de marca. El Brand Analyzer lo prioriza sobre los inputs sueltos cuando hay conflicto."
+    >
+      <div className="flex flex-col gap-3">
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".md,text/markdown,text/plain"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onFile(file);
+          }}
+          className="block w-full cursor-pointer border border-white/[0.12] bg-transparent py-3 px-4 text-xs text-white/70 file:mr-4 file:cursor-pointer file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-xs file:uppercase file:tracking-[0.2em] file:text-white hover:border-white/30"
+        />
+        {hasFile ? (
+          <div className="flex items-center justify-between gap-3 border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-xs">
+            <span className="text-emerald-200/80">
+              {fileName} · {markdown?.length.toLocaleString()} caracteres
+            </span>
+            <button
+              type="button"
+              onClick={onClear}
+              className="text-emerald-200/60 hover:text-emerald-200/90"
+            >
+              Quitar
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </Field>
   );
 }

@@ -76,13 +76,7 @@ export function BriefStep({
           rows={4}
           value={value.restricciones.join('\n')}
           onChange={(e) =>
-            update(
-              'restricciones',
-              e.target.value
-                .split('\n')
-                .map((s) => s.trim())
-                .filter(Boolean),
-            )
+            update('restricciones', e.target.value.split('\n'))
           }
           placeholder={'No precios específicos\nEvitar rojo navideño'}
         />

@@ -16,6 +16,7 @@ const sans = Geist({
 const NAV_ITEMS = [
   { label: 'Mis Marcas', href: '/dashboard', active: true },
   { label: 'Campañas Recientes', href: '/dashboard/campaigns', active: false },
+  { label: 'Admin · Agentes', href: '/admin/login', active: false },
   { label: 'Configuración', href: '/dashboard/settings', active: false },
   { label: 'Facturación', href: '/dashboard/billing', active: false },
 ];

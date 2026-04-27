@@ -42,9 +42,9 @@ export default function LandingPage() {
             <a href="#" className="transition-colors hover:text-white">
               Precios
             </a>
-            <a href="#" className="transition-colors hover:text-white">
-              Acceder
-            </a>
+            <Link href="/admin/login" className="transition-colors hover:text-white">
+              Admin
+            </Link>
           </nav>
         </div>
       </header>
