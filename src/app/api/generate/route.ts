@@ -5,15 +5,16 @@
 //
 // Corre los 8 agentes en secuencia:
 //   1. Brief Analyst         (LLM)
-//   2. Brand Analyzer        (LLM)
-//   3. Brand Historian       (stub)
+//   2. Brand Analyzer        (LLM, multimodal si hay imágenes)
+//   3. Brand Historian       (stub — Fase 3)
 //   4. Creative Director     (LLM)
 //   5. Copywriter            (LLM)
-//   6. Art Director          (LLM)
-//   7. Image Generation      (stub)
-//   8. Layout Composer       — saltado en Fase 2A (la UI reemplaza)
+//   6. Art Director          (LLM, multimodal si hay imágenes de referencia)
+//   7. Image Generation      (Replicate — Flux Dev por defecto)
+//   8. Layout Composer       — saltado (la UI compone en HTML hasta Fase 2C)
 //
-// Sin streaming. Una sola respuesta cuando todo termina (45-60s típicamente).
+// Sin streaming. Una sola respuesta cuando todo termina (~60-90s típicamente,
+// depende del modelo Replicate y cantidad de imágenes).
 
 import { NextResponse } from 'next/server';
 import { analyzeBrief } from '@/lib/agents/brief-analyst';

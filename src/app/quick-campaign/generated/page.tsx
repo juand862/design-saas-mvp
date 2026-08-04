@@ -53,7 +53,7 @@ const STEPS: StepDef[] = [
   { id: 'creative-director', name: 'Creative Director', description: 'Define el concepto creativo.' },
   { id: 'copywriter', name: 'Copywriter', description: 'Copy por formato.' },
   { id: 'art-director', name: 'Art Director', description: 'Image prompts por variación.' },
-  { id: 'image-generator', name: 'Image Generator', description: 'Genera placeholders (stub).' },
+  { id: 'image-generator', name: 'Image Generator', description: 'Genera imágenes con Replicate (Flux Dev por defecto).' },
 ];
 
 type StepStatus = 'pending' | 'running' | 'awaiting-ok' | 'done' | 'error';
